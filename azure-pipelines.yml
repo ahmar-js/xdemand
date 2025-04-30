@@ -1,0 +1,30 @@
+trigger:
+  branches:
+    include:
+      - 'master'
+
+pr:
+  branches:
+    include:
+      - '*'
+  paths:
+    include:
+      - '*'
+    
+
+pool:
+  vmImage: ubuntu-latest
+
+steps:
+- script: |
+    # npm install
+    # npm run build
+  displayName: 'yarn install and build'
+
+- task: PublishPipelineArtifact@1
+  inputs:
+    targetPath: '$(Pipeline.Workspace)/s'
+    artifact: 'xdemand-frontend'
+    publishLocation: 'pipeline'
+  condition: |
+    ne(variables['Build.Reason'], 'PullRequest')
