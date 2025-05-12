@@ -37,11 +37,17 @@ const DownloadButton: FC<DownloadButtonProps> = ({ data, chartRef }) => {
       // Format data for CSV - flatten the structure
       const csvData = data.map(item => ({
         Date: item.date,
+        'Category': item.category || 'All categories',
+        'Title': item.title || 'All titles',
+        'SKU': item.sku || 'All SKUs',
+        'Warehouse': item.warehouse || 'All warehouses',
+        'Channel': item.channel || 'All channels',
         'Actual Demand': item.demand,
         'Forecast': item.forecast,
         'Lower Bound': item.lowerBound,
         'Upper Bound': item.upperBound,
-        'Revenue': item.revenue
+        'Revenue': item.revenue,
+        'Out of Stock': item.out_of_stock === 1 ? 'Yes' : 'No'
       }));
       
       // Convert to CSV string

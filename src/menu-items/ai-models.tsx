@@ -19,10 +19,10 @@ const aimodels: NavItemType = {
   type: 'group',
   children: [
     {
-      id: 'demand-forcasting',
-      title: <FormattedMessage id="demand-forcasting"/>,
+      id: 'demand-forecasting',
+      title: <FormattedMessage id="demand-forecasting"/>,
       type: 'item',
-      url: '/demand-forcasting',
+      url: '/demand-forecasting',
       icon: icons.LineChartOutlined,
       target: true
     }, 

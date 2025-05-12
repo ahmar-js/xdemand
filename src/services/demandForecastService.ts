@@ -47,46 +47,60 @@ export interface ChartDataPoint {
   for_rev_trend?: number | null;
   for_rev_weekly?: number | null;
   for_rev_yearly?: number | null;
+  out_of_stock?: number | null;
+  oos_dates?: string[]; // Array of dates where out_of_stock = 1 in aggregated view
 }
 
 // Helper to convert API data to chart format
 export const processApiData = (data: DemandDataPoint[]): ChartDataPoint[] => {
-  return data.map(item => ({
-    date: item.Date,
-    demand: item.Quantity,
-    forecast: item.for_qty_yhat,
-    lowerBound: item.for_qty_yhat_lower ?? 0,
-    upperBound: item.for_qty_yhat_upper ?? 0,
-    revenue: item.revenue,
-    category: item.Linn_Category,
-    title: item.Linn_Title,
-    sku: item.im_sku,
-    warehouse: item.warehouse_code,
-    channel: item.Channel,
-    for_qty_trend: item.for_qty_trend,
-    for_qty_weekly: item.for_qty_weekly,
-    for_qty_yearly: item.for_qty_yearly
-  }));
+  return data.map(item => {
+    // Ensure out_of_stock is a binary value
+    const outOfStockValue = item.out_of_stock === 1 ? 1 : 0;
+    
+    return {
+      date: item.Date,
+      demand: item.Quantity,
+      forecast: item.for_qty_yhat,
+      lowerBound: item.for_qty_yhat_lower ?? 0,
+      upperBound: item.for_qty_yhat_upper ?? 0,
+      revenue: item.revenue,
+      category: item.Linn_Category,
+      title: item.Linn_Title,
+      sku: item.im_sku,
+      warehouse: item.warehouse_code,
+      channel: item.Channel,
+      for_qty_trend: item.for_qty_trend,
+      for_qty_weekly: item.for_qty_weekly,
+      for_qty_yearly: item.for_qty_yearly,
+      out_of_stock: outOfStockValue
+    };
+  });
 };
 
 // Helper to process data for revenue chart
 export const processApiDataForRevenue = (data: DemandDataPoint[]): ChartDataPoint[] => {
-  return data.map(item => ({
-    date: item.Date,
-    demand: null, // Not used for revenue chart
-    revenue: item.revenue,
-    forecast: item.for_rev_yhat,
-    lowerBound: item.for_rev_yhat_lower ?? 0,
-    upperBound: item.for_rev_yhat_upper ?? 0,
-    category: item.Linn_Category,
-    title: item.Linn_Title,
-    sku: item.im_sku,
-    warehouse: item.warehouse_code,
-    channel: item.Channel,
-    for_rev_trend: item.for_rev_trend,
-    for_rev_weekly: item.for_rev_weekly,
-    for_rev_yearly: item.for_rev_yearly
-  }));
+  return data.map(item => {
+    // Ensure out_of_stock is a binary value
+    const outOfStockValue = item.out_of_stock === 1 ? 1 : 0;
+    
+    return {
+      date: item.Date,
+      demand: null, // Not used for revenue chart
+      revenue: item.revenue,
+      forecast: item.for_rev_yhat,
+      lowerBound: item.for_rev_yhat_lower ?? 0,
+      upperBound: item.for_rev_yhat_upper ?? 0,
+      category: item.Linn_Category,
+      title: item.Linn_Title,
+      sku: item.im_sku,
+      warehouse: item.warehouse_code,
+      channel: item.Channel,
+      for_rev_trend: item.for_rev_trend,
+      for_rev_weekly: item.for_rev_weekly,
+      for_rev_yearly: item.for_rev_yearly,
+      out_of_stock: outOfStockValue
+    };
+  });
 };
 
 // Helper to get unique values for a field (for filtering)
@@ -106,9 +120,10 @@ export const getUniqueValues = (data: DemandDataPoint[], field: keyof DemandData
 // Fetch data from the API
 export const fetchDemandForecastData = async (metric: 'quantity' | 'revenue'): Promise<ChartDataPoint[]> => {
   try {
+    const apiUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
     // tell axios to expect JSON
     const response = await axios.get<DemandDataPoint[]>(
-      'http://127.0.0.1:5000/csv-to-json',
+      `${apiUrl}/csv-to-json`,
       { responseType: 'json' }
     )
 
@@ -118,16 +133,38 @@ export const fetchDemandForecastData = async (metric: 'quantity' | 'revenue'): P
       ? JSON.parse(raw)
       : raw
 
-    console.log("raw", raw);
+    // Log raw API data to check for out_of_stock values
+    console.log("Raw API data sample:", arr.slice(0, 2));
+    
+    // Check specifically for out_of_stock in raw data
+    const hasOutOfStock = arr.some(item => item.out_of_stock === 1);
+    console.log("API data has out_of_stock = 1:", hasOutOfStock);
+    
+    // Count how many records have out_of_stock = 1
+    const outOfStockCount = arr.filter(item => item.out_of_stock === 1).length;
+    console.log(`API data: ${outOfStockCount} records have out_of_stock = 1 out of ${arr.length} total`);
+    
+    // Look for June 2nd data specifically
+    const june2Data = arr.filter(item => item.Date === '2024-06-02');
+    if (june2Data.length > 0) {
+      console.log("June 2, 2024 raw data:", june2Data);
+    }
+
     if (!Array.isArray(arr)) {
       console.error('API response is not an array:', arr)
       throw new Error('Invalid data format from API')
     }
 
     // Process data based on the metric
-    return metric === 'quantity' 
+    const result = metric === 'quantity' 
       ? processApiData(arr)
       : processApiDataForRevenue(arr);
+      
+    // Check if out_of_stock is preserved after processing
+    const processedHasOutOfStock = result.some(item => item.out_of_stock === 1);
+    console.log("Processed data has out_of_stock = 1:", processedHasOutOfStock);
+      
+    return result;
   } catch (err) {
     console.error('Error fetching demand forecast data:', err)
     throw err

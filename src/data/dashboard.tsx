@@ -58,7 +58,7 @@ export const getDashboardData = (router: any): DashboardData => ({
     icon: <TrendingUpIcon />,
     color: "#2196f3",
     data: forecastedSalesData,
-    onClick: () => router.push('/demand-forcasting'),
+    onClick: () => router.push('/demand-forecasting'),
     dataKey: 'sales'
   },
   outOfStock: {

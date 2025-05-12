@@ -25,22 +25,25 @@ def csv_to_json():
         # 2) Filter to the two SKUs you care about
         df = df[df['im_sku'].isin(['3PBR-F6MB-5FT', 'BGR-F6MB-14OZ'])]
 
-        # 3) Drop any “Unnamed:” index column
+        # 3) Drop any "Unnamed:" index column
         df = df.drop(columns=[c for c in df.columns if c.startswith('Unnamed')], errors='ignore')
 
-        # 4) Normalize the out_of_stock column (if present)
-        # if 'out_of_stock' in df.columns:
-        #     df['out_of_stock'] = (
-        #         df['out_of_stock']
-        #           .map({'True': 1, 'False': 0})
-        #           .astype(pd.Int64Dtype())   # pandas nullable integer
-        #     )
-        print(df['out_of_stock'].isna().sum())
-        df.to_csv("cleaned_data.csv", index=False)
+        # Debug: Count how many rows have out_of_stock values
+        print(f"Total rows: {len(df)}")
+        print(f"Rows with out_of_stock=NaN: {df['out_of_stock'].isna().sum()}")
+        print(f"Rows with out_of_stock=1: {(df['out_of_stock'] == 1).sum()}")
+        print(f"Rows with out_of_stock=0: {(df['out_of_stock'] == 0).sum()}")
+        
+        # Debug: Show a few rows with out_of_stock=1 if they exist
+        rows_with_out_of_stock = df[df['out_of_stock'] == 1].head(3)
+        if not rows_with_out_of_stock.empty:
+            print("Sample rows with out_of_stock=1:")
+            print(rows_with_out_of_stock[['Date', 'im_sku', 'out_of_stock']])
+
         # 5) Convert the DataFrame into a list of dicts
         records = df.to_dict(orient='records')
 
-        # 6) **Clean every record**: turn ANY pandas “na” into Python None
+        # 6) **Clean every record**: turn ANY pandas "na" into Python None
         clean = []
         for rec in records:
             for k, v in rec.items():
@@ -48,8 +51,10 @@ def csv_to_json():
                     rec[k] = None
             clean.append(rec)
 
-        # 7) Dump to a JSON string (now only None, never NaN) and return
-        return Response(json.dumps(clean), mimetype='application/json')
+        # Add a response header for debugging
+        response = Response(json.dumps(clean), mimetype='application/json')
+        response.headers['X-Debug-OutOfStock-Count'] = str((df['out_of_stock'] == 1).sum())
+        return response
 
     except Exception as e:
         err = {'error': str(e)}
@@ -95,7 +100,7 @@ def dynamic_filter():
 
         records = df.to_dict(orient='records')
 
-        # 6) **Clean every record**: turn ANY pandas “na” into Python None
+        # 6) **Clean every record**: turn ANY pandas "na" into Python None
         clean = []
         for rec in records:
             for k, v in rec.items():
@@ -175,7 +180,7 @@ def kpi_cards():
         # parse the end date
         end_dt = pd.to_datetime(end_date_str)
 
-        # 3) Define sliding windows and “require_prev” logic
+        # 3) Define sliding windows and "require_prev" logic
         periods = {
             'daily': {
                 'start': end_dt,
@@ -211,7 +216,7 @@ def kpi_cards():
             next_end   = next_start + span
             mask_next  = df['Date'].between(next_start, next_end)
 
-            # if we need two periods but they’re not there, bail
+            # if we need two periods but they're not there, bail
             if require_prev and (mask_prev.sum() == 0 or mask_curr.sum() == 0):
                 return None
 

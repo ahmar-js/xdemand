@@ -146,8 +146,9 @@ export default function AdvanceFilterDialog({ handleClose, open, title, onApplyF
   React.useEffect(() => {
     if (apiData && apiData.length > 0 && rawData.length === 0) { // Fetch raw data only once
       setIsFilterLoading(true);
+      const apiUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
       
-      fetch('http://127.0.0.1:5000/csv-to-json')
+      fetch(`${apiUrl}/csv-to-json`)
         .then(response => response.json())
         .then((data: DemandDataPoint[]) => {
           setRawData(data);

@@ -40,7 +40,7 @@ const displayNames: Record<FilterCategory, string> = {
 // Disabled categories
 const disabledCategories: FilterCategory[] = ['Linn_Title'];
 
-export default function DemandForcastingView() {
+export default function DemandForecastingView() {
   const theme = useTheme();
   const [metric, setMetric] = React.useState<string>('Quantity');
   const [aggregate, setAggregate] = React.useState<string>('Weekly');
@@ -121,9 +121,10 @@ export default function DemandForcastingView() {
       setFilteredData(aggregatedData);
       return;
     }
+    const apiUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
 
     // Otherwise, fetch filtered data from the backend
-    fetch('http://127.0.0.1:5000/csv-to-json')
+    fetch(`${apiUrl}/csv-to-json`)
       .then(response => {
         if (!response.ok) {
           throw new Error('Failed to fetch data');
@@ -147,6 +148,10 @@ export default function DemandForcastingView() {
         
         // Transform filtered raw data to chart format based on the current metric
         const processedData = filtered.map(item => {
+          // First check and standardize out_of_stock to ensure it's truly binary
+          // If it's any non-zero value, set it to 1, otherwise 0
+          const outOfStockValue = item.out_of_stock ? 1 : 0;
+          
           if (metric.toLowerCase() === 'revenue') {
             return {
               date: item.Date,
@@ -162,7 +167,8 @@ export default function DemandForcastingView() {
               channel: item.Channel,
               for_rev_trend: item.for_rev_trend ?? 0,
               for_rev_weekly: item.for_rev_weekly ?? 0,
-              for_rev_yearly: item.for_rev_yearly ?? 0
+              for_rev_yearly: item.for_rev_yearly ?? 0,
+              out_of_stock: outOfStockValue
             };
           } else {
             return {
@@ -179,10 +185,16 @@ export default function DemandForcastingView() {
               channel: item.Channel,
               for_qty_trend: item.for_qty_trend ?? 0,
               for_qty_weekly: item.for_qty_weekly ?? 0,
-              for_qty_yearly: item.for_qty_yearly ?? 0
+              for_qty_yearly: item.for_qty_yearly ?? 0,
+              out_of_stock: outOfStockValue
             };
           }
         });
+        
+        // Log to verify the data has the correct out_of_stock values
+        console.log('Processed data before setting to state:', 
+          processedData.filter(item => item.date === '2024-06-02')
+        );
         
         setFilteredData(processedData);
       })
@@ -196,9 +208,18 @@ export default function DemandForcastingView() {
     // Create a map to store aggregated data by date
     const dateMap: Record<string, any> = {};
     
+    // First pass: create entries and collect out_of_stock information
+    // We'll use a separate structure to track which dates have out_of_stock=1
+    const datesWithOutOfStock = new Set<string>();
+    
     // Group data by date and aggregate values
     data.forEach(item => {
       const date = item.date;
+      
+      // Check for out_of_stock and add to our tracking set if it's true (1)
+      if (item.out_of_stock) {
+        datesWithOutOfStock.add(date);
+      }
       
       if (!dateMap[date]) {
         // Initialize aggregated item with zeros
@@ -236,25 +257,28 @@ export default function DemandForcastingView() {
       
       // Increment counter
       dateMap[date].count++;
-      
-      // Track forecast flag
-      dateMap[date].isForecast = item.isForecast;
     });
     
-    // Convert the map to an array and format the result
-    return Object.values(dateMap).map(item => {
-      const { count, ...rest } = item;
-      
+    // Calculate averages and convert back to array
+    return Object.entries(dateMap).map(([date, item]) => {
+      const count = item.count;
       return {
-        ...rest,
-        // Set generic category/identifiers since this is aggregated
-        category: 'All Categories',
-        title: 'All Products',
-        sku: 'All SKUs',
-        warehouse: 'All Warehouses',
-        channel: 'All Channels'
+        date,
+        demand: item.demand / count,
+        revenue: item.revenue / count,
+        forecast: item.forecast / count,
+        lowerBound: item.lowerBound / count,
+        upperBound: item.upperBound / count,
+        for_qty_trend: item.for_qty_trend / count,
+        for_qty_weekly: item.for_qty_weekly / count,
+        for_qty_yearly: item.for_qty_yearly / count,
+        for_rev_trend: item.for_rev_trend / count,
+        for_rev_weekly: item.for_rev_weekly / count,
+        for_rev_yearly: item.for_rev_yearly / count,
+        // Set out_of_stock to 1 if this date is in our tracking set, otherwise 0
+        out_of_stock: datesWithOutOfStock.has(date) ? 1 : 0
       };
-    });
+    }).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
   };
 
   // Update brush filtered data when filtered data changes

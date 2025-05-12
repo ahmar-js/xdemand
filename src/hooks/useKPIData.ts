@@ -29,7 +29,8 @@ export interface KPIDataResponse {
 // Function to fetch KPI data
 export const fetchKPIData = async (params: KPIDataParams): Promise<KPIDataResponse> => {
   try {
-    const response = await axios.post('http://127.0.0.1:5000/kpi-cards', params);
+    const apiUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
+    const response = await axios.post(`${apiUrl}/kpi-cards`, params);
     return response.data;
   } catch (error) {
     console.error('Error fetching KPI data:', error);
